@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .base import Conv1dSame, WaveformModel
+from .base import Conv1dSame, SeisBenchModel, WaveformModel
 
 
 class PhaseNet(WaveformModel):
@@ -123,7 +123,6 @@ class PhaseNet(WaveformModel):
         ):
             x = self.activation(bn1(conv_up(x)))
             x = x[:, :, 1:-2]
-
             x = self._merge_skip(skip, x)
             x = self.activation(bn2(conv_same(x)))
 
@@ -135,10 +134,13 @@ class PhaseNet(WaveformModel):
 
     @staticmethod
     def _merge_skip(skip, x):
-        offset = (x.shape[-1] - skip.shape[-1]) // 2
-        x_resize = x[:, :, offset : offset + skip.shape[-1]]
-
-        return torch.cat([skip, x_resize], dim=1)
+        if x.shape[-1] > skip.shape[-1]:
+            offset = (x.shape[-1] - skip.shape[-1]) // 2
+            x = x[:, :, offset : offset + skip.shape[-1]]
+        elif x.shape[-1] < skip.shape[-1]:
+            offset = (skip.shape[-1] - x.shape[-1]) // 2
+            skip = skip[:, :, offset : offset + x.shape[-1]]
+        return torch.cat([skip, x], dim=1)
 
     def annotate_window_pre(self, window, argdict):
         # Add a demean and normalize step to the preprocessing
